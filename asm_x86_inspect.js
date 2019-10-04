@@ -5,6 +5,7 @@ let src_path;
 let asm_lines = [];
 let byte_lines;
 let variables;
+let first_addr;
 
 const isLetter = chr => chr.toLowerCase() !== chr.toUpperCase();
 const isDigit = chr => chr >= '0' && chr <= '9';
@@ -36,22 +37,22 @@ const write_c_file = () => new Promise((done, fail) => {
 	code += '#include <stdio.h>\n';
 	code += '#include <stdlib.h>\n';
 	code += 'typedef unsigned char byte;\n';
-	code += '#define asm_begin "\\n.intel_syntax noprefix\\n"\n';
-	code += '#define asm_end "\\n.att_syntax prefix\\n"\n';
+	code += '#define asm_begin asm("\\n.intel_syntax noprefix\\n"\n';
+	code += '#define asm_end "\\n.att_syntax prefix\\n");\n';
 	if (vars.length) {
 		code += 'int ' + vars.join(', ') + ';\n';
 	}
-	code += 'asm(asm_begin\n';
+	code += 'asm_begin\n';
 	const n = asm_lines.length;
 	asm_lines.forEach((line, i) => {
 		line = `asm_reference_${i}: ${line}\n`;
 		code += `\t${JSON.stringify(line)}\n`;
 	});
 	code += `\t"asm_reference_${n}:"\n`
-	code += 'asm_end);\n';
+	code += 'asm_end\n';
 	for (let i=0; i<=n; ++i) {
-		code += `byte* get_asm_reference_${i}() {\n`;
-		code += `\tasm(asm_begin "lea eax, asm_reference_${i}" asm_end);\n`;
+		code += `byte* get_asm_reference_${i}() {`;
+		code += `asm_begin "lea eax, asm_reference_${i}" asm_end`;
 		code += '}\n';
 	}
 	code += 'int main(int argc, char const *argv[]) {\n';
@@ -77,7 +78,7 @@ const write_c_file = () => new Promise((done, fail) => {
 	vars.forEach((id, i) => {
 		code += `\tprintf("${i?', ':''}[\\"${id}\\", %d]", (int)&${id});\n`;
 	});
-	code += '\tprintf("]}");\n';
+	code += '\tprintf("], \\"first_addr\\": %d}", array[0]);\n';
 	code += '\treturn 0;\n';
 	code += '};';
 	fs.writeFile('asm_scanner.c', code, error => {
@@ -106,6 +107,7 @@ const compile = () => new Promise((done, fail) => {
 });
 
 const run = () => new Promise((done, fail) => {
+	console.log('Running...');
 	exec('asm_scanner.exe', (error, output) => {
 		if (error) {
 			fail('Runtime error in asm_scanner.exe');
@@ -113,6 +115,7 @@ const run = () => new Promise((done, fail) => {
 			json = JSON.parse(output);
 			byte_lines = json.instructions;
 			variables = json.vars;
+			first_addr = json.first_addr;
 			done();
 		}
 	});
@@ -156,6 +159,14 @@ const stringifyBytes = (bytes, base) => {
 	return str;
 };
 
+const stringifyWord = (value, base) => {
+	let bytes = [];
+	for (let i=0; i<4; ++i) {
+		bytes.push((value >> (i*8)) & 255);
+	}
+	return stringifyBytes(bytes, base);
+};
+
 const getDstPath = () => {
 	let i = src_path.lastIndexOf('.');
 	if (i == -1) return src_path + '-out.txt';
@@ -163,24 +174,29 @@ const getDstPath = () => {
 };
 
 const generateOutput = () => new Promise((done, fail) => {
-	let table = [['INSTRUCTION', 'HEX', 'BIN']];
+	let table = [['ADDR (HEX)', 'ADDR (DEC)', 'INSTRUCTION', 'HEX', 'BIN']];
+	let addr = first_addr;
 	asm_lines.forEach((line, i) => {
 		const hex = stringifyBytes(byte_lines[i], 16);
 		const bin = stringifyBytes(byte_lines[i], 2);
-		table.push([line, hex, bin]);
+		table.push([
+			stringifyWord(addr, 16),
+			addr,
+			line,
+			hex,
+			bin
+		]);
+		addr += byte_lines[i].length;
 	});
 	let output = stringifyTable(table) + '\n';
 	if (variables.length) {
-		vint = new Uint32Array(1);
-		vbyte = new Uint8Array(vint.buffer, 0, 4);
-		table = [['VARIABLE', 'ADDRESS (HEX)', 'ADDRESS (BIN)']];
+		table = [['VARIABLE', 'ADDR (HEX)', 'ADDR (BIN)']];
 		variables.forEach(row => {
-			const [id, addr] = row;
-			vint[0] = addr;
+			let [id, addr] = row;
 			table.push([
 				id,
-				stringifyBytes(vbyte, 16),
-				stringifyBytes(vbyte, 2)
+				stringifyWord(addr, 16),
+				stringifyWord(addr, 2)
 			]);
 		});
 		output += '\n' + stringifyTable(table);
