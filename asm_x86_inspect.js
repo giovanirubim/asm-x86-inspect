@@ -1,11 +1,21 @@
 const fs = require('fs');
 const {exec} = require('child_process');
 
+let run_line;
+let compile_line;
 let src_path;
 let asm_lines = [];
 let byte_lines;
 let variables;
 let first_addr;
+
+if (process.platform === 'win32') {
+	run_line = 'asm_scanner.exe';
+	compile_line = 'gcc -m32 asm_scanner.c -o asm_scanner.exe';
+} else {
+	run_line = './asm_scanner';
+	compile_line = 'gcc -m32 asm_scanner.c -o asm_scanner';
+}
 
 const isLetter = chr => chr.toLowerCase() !== chr.toUpperCase();
 const isDigit = chr => chr >= '0' && chr <= '9';
@@ -91,9 +101,8 @@ const write_c_file = () => new Promise((done, fail) => {
 });
 
 const compile = () => new Promise((done, fail) => {
-	const line = 'gcc -m32 asm_scanner.c -o asm_scanner.exe';
 	console.log('Compiling...');
-	exec(line, (error, b, msg) => {
+	exec(compile_line, (error, b, msg) => {
 		if (error) {
 			if (msg) {
 				fail('Fail to compile asm_scanner.c\nError:\n' + msg);
@@ -108,7 +117,7 @@ const compile = () => new Promise((done, fail) => {
 
 const run = () => new Promise((done, fail) => {
 	console.log('Running...');
-	exec('asm_scanner.exe', (error, output) => {
+	exec(run_line, (error, output) => {
 		if (error) {
 			fail('Runtime error in asm_scanner.exe');
 		} else {
