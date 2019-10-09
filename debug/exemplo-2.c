@@ -1,4 +1,3 @@
-#define MEM_PREFIX "_"
 #include "asmdebug.h"
 
 int soma_dig(int x) {
