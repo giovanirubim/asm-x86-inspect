@@ -90,8 +90,12 @@ void update_alias() {
 	LOAD_REGS
 
 void dump_instruction(const char str[]) {
-	unsigned char* a = (unsigned char*) (cp_label_beg | _cp_label_beg);
-	unsigned char* b = (unsigned char*) (cp_label_end | _cp_label_end);
+	unsigned char* a;
+	unsigned char* b;
+	uint32_t ptr_a = (cp_label_beg | _cp_label_beg);
+	uint32_t ptr_b = (cp_label_end | _cp_label_end);
+	*(uint32_t*)(&a) = ptr_a;
+	*(uint32_t*)(&b) = ptr_b;
 	printf("{%s} -> ", str);
 	int n = b - a, i, j;
 	for (i=0; i<n; ++i) {
