@@ -69,10 +69,10 @@ void update_alias() {
 	mov esi, _reg_esi\n\
 	mov edi, _reg_edi\n"
 
-#define PRINT(format, ...)\
+#define PRINT(...)\
 	STORE_REGS ASM_END\
 	update_alias();\
-	printf(format, __VA_ARGS__);\
+	printf(__VA_ARGS__);\
 	ASM_BEG LOAD_REGS
 
 #define INSPECT(str)\
